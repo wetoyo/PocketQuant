@@ -1,38 +1,33 @@
 import xgboost as xgb
-import pandas as pd
+from sklearn.metrics import mean_squared_error
 
-def train_xgboost_model(dataframe, params=None, num_boost_round=10):
+def train_xgboost_model(X, y, num_boost_round=100):
     """
-    Trains an XGBoost model on the given dataset.
+    Trains an XGBoost model using the provided features and target.
     
     Parameters:
-    - dataframe (pd.DataFrame): The input table. The last column is assumed to be the target variable.
-    - params (dict): Optional dictionary of hyperparameters for XGBoost. Defaults to a basic setup.
-    - num_boost_round (int): Number of boosting rounds. Defaults to 10.
-    
+        X (np.ndarray): Feature matrix.
+        y (np.ndarray): Target vector.
+        num_boost_round (int): Number of boosting rounds for training.
+        
     Returns:
-    - booster (xgb.Booster): The trained XGBoost model.
+        tuple: Trained XGBoost booster and Mean Squared Error on training data.
     """
-    if dataframe.shape[0] < 2 or dataframe.shape[0] > 20:
-        raise ValueError("The input dataset must have between 2 and 20 rows.")
+    # Convert to DMatrix format for XGBoost
+    dtrain = xgb.DMatrix(X, label=y)
 
-    # Split into features (X) and target (y)
-    X = dataframe.iloc[:, :-1]
-    y = dataframe.iloc[:, -1]
+    # Define parameters for XGBoost
+    params = {
+        "max_depth": 4,
+        "learning_rate": 0.1,
+        "objective": "reg:squarederror"
+    }
 
-    # Convert to DMatrix format required by XGBoost
-    dtrain = xgb.DMatrix(data=X, label=y)
+    # Train the model
+    booster = xgb.train(params, dtrain, num_boost_round=num_boost_round)
 
-    # Set default parameters if none are provided
-    if params is None:
-        params = {
-            "objective": "reg:squarederror",  # Default for regression, change as needed
-            "max_depth": 6,
-            "learning_rate": 0.1,
-            "eval_metric": "rmse"  # Default evaluation metric
-        }
+    # Predict on training data to calculate MSE
+    train_preds = booster.predict(dtrain)
+    mse = mean_squared_error(y, train_preds)
 
-    # Train the XGBoost model
-    booster = xgb.train(params=params, dtrain=dtrain, num_boost_round=num_boost_round)
-
-    return booster
+    return booster, mse
