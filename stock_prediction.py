@@ -267,19 +267,39 @@ def comparison_function(tickers, target_ticker, comparison_date):
     mean_absolute_error = total_error / 10
     print(f"Mean Absolute Error (MAE) for next 10 minutes: {mean_absolute_error}. Total Absolute Error for the next 10 minutes: {total_error}. Time: {comparison_date}")
     return mean_absolute_error
-# # # Example usage (replace `tickers` and `target_ticker` with real data)
-comparison_date = datetime(2024, 11, 27, 14, 30, 0, tzinfo=eastern_timezone)  # The day you want to compare
-mean = 0
-runs = 200
-sucess = runs
-for i in range(runs):
-    value = comparison_function(["AAPL", "GOOG"], "AAPL", comparison_date)
-    if value != 0:
-        mean += value
-    else:
-        sucess -=1
-    comparison_date += timedelta(minutes=10)  # Increment by 10 minutes
-    if comparison_date.time() >= market_close_time:
-        comparison_date += timedelta(days=1)  # Move to the next day
-        comparison_date = comparison_date.replace(hour=9, minute=30, second=0, microsecond=0)
-print(f"Average MAE across runs: {mean/sucess}. There were {runs - sucess} / {runs} unsucessful queries.")
+
+def batch_test(tickers, target_ticker, date, runs = 200):
+    """
+    Performs batch testing for stock predictions, runs the comparison function 
+    multiple times while ensuring the date is within the last 20 days.
+    
+    Parameters:
+        date (datetime): The starting date for the comparison.
+    """
+    
+    # Ensure the provided date is within 20 days of the current date
+    today = datetime.now(eastern_timezone)
+    max_date = today - timedelta(days=20)
+    if date < max_date:
+        raise ValueError(f"The provided date must be within the last 20 days. Max allowed date: {max_date.strftime('%Y-%m-%d')}")
+
+    comparison_date = date
+    mean = 0
+    success = runs
+    
+    for i in range(runs):
+        value = comparison_function(tickers, target_ticker, comparison_date)
+        if value != 0:
+            mean += value
+        else:
+            success -= 1
+        
+        comparison_date += timedelta(minutes=10)  # Increment by 10 minutes
+        
+        # If comparison date goes past market close time, move to the next day
+        if comparison_date.time() >= market_close_time:
+            comparison_date += timedelta(days=1)  # Move to the next day
+            comparison_date = comparison_date.replace(hour=9, minute=30, second=0, microsecond=0)
+    
+    # Print the results
+    print(f"Average MAE across runs: {mean / success}. There were {runs - success} / {runs} unsuccessful queries.")
