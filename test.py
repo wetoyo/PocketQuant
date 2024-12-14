@@ -1,5 +1,11 @@
 from stock_prediction import stock_prediction
+from datetime import datetime, timedelta
 
-ticker = "AAPL"  # Example ticker, replace with the desired ticker
-json_output = stock_prediction(ticker)
-print(json_output)  # This will print the JSON data to the console
+# Example usage:
+
+tickers = ["AAPL", "GOOG", "MSFT"]  # Example tickers
+target_ticker = "AAPL"  # The stock to predict
+start = datetime(2024, 12, 9, 9, 30, 0)
+end = datetime(2024, 12, 9, 9, 40, 0)
+json_output = stock_prediction(tickers, target_ticker, 4, start_date_param=start, end_date_param=end)
+print(json_output)

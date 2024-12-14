@@ -23,11 +23,4 @@ def train_xgboost_model(X, y, num_boost_round=100):
         "objective": "reg:squarederror"
     }
 
-    # Train the model
-    booster = xgb.train(params, dtrain, num_boost_round=num_boost_round)
-
-    # Predict on training data to calculate MSE
-    train_preds = booster.predict(dtrain)
-    mse = mean_squared_error(y, train_preds)
-
-    return booster, mse
+    return xgb.train(params, dtrain, num_boost_round=num_boost_round)
