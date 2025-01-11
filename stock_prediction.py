@@ -193,7 +193,7 @@ def stock_prediction(tickers, target_ticker, num_future_minutes=5, start_date_pa
             last_known_features[0, 0] = last_known_features[0, -1]
             last_known_features[0, -1] = next_prediction  # Close = Predicted Close
             last_known_features[0, 1] = max(last_known_features[0, 0], next_prediction * 1.001)
-            last_known_features[0, 2] = min(last_known_features[0, 0], next_prediction * 0.999)
+            last_known_features[0, 2] = min(last_known_features[0, 0], next_prediction * 0.999) 
             # last_known_features[0, 4] *= 1 + np.random.uniform(-0.01, 0.01)
             
             # Increment the time for the next prediction by one minute
@@ -286,7 +286,7 @@ def batch_test(tickers, target_ticker, date, runs=200, interval=10, scale_method
         # Fetch actual and predicted data for the target ticker
         actual_prices, predicted_prices, actual_data = comparison_function(tickers, target_ticker, comparison_date, interval)
         
-        if actual_prices != [] and predicted_prices != []:  # Only aggregate if there is data
+        if actual_prices.size > 0 and predicted_prices != []:  # Only aggregate if there is data
             all_predicted_prices.extend(predicted_prices)
             all_actual_prices[target_ticker].extend(actual_prices)
             all_timestamps.extend(actual_data.index.to_pydatetime())  # Collect timestamps for X-axis
