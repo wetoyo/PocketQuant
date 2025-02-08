@@ -4,14 +4,16 @@ import xgboost as xgb  # Import xgboost for using the model
 from datetime import datetime, timedelta
 from train_xgboost import train_xgboost_model
 from sklearn.metrics import mean_squared_error
+from scrape import analyze_stock_sentiment
 import json
 import pytz
+import pandas as pd
 import matplotlib.pyplot as plt
 market_open_time = datetime.strptime('09:30:00', '%H:%M:%S').time()
 market_close_time = datetime.strptime('16:00:00', '%H:%M:%S').time()
 eastern_timezone = pytz.timezone("Etc/GMT+5")
 
-def fetch_and_align_data(tickers, interval="1m", start_date=None, end_date=None):
+def fetch_and_align_data(tickers, interval="1m", start_date=None, end_date=None, sentiment_analysis = False, sentiment_interval = 1, short_volume = False, sentiment_hours = -1):
     """
     Fetches and aligns minute-level stock data for multiple tickers.
     
@@ -20,6 +22,10 @@ def fetch_and_align_data(tickers, interval="1m", start_date=None, end_date=None)
         interval (str): Data interval (e.g., '1m', '2m').
         start_date (datetime): Start date for fetching data (should be in New York timezone).
         end_date (datetime): End date for fetching data (should be in New York timezone).
+        sentiment_analysis (bool): Whether to include sentiment analysis.
+        sentiment_interval (int): Interval (in hours) for sentiment analysis.
+        sentiment_hours (int): Span for sentiment analysis.
+
         
     Returns:
         DataFrame: Aggregated and aligned stock data with features for all tickers.
@@ -52,24 +58,41 @@ def fetch_and_align_data(tickers, interval="1m", start_date=None, end_date=None)
     end_date_str = temp_end.strftime('%Y-%m-%d')
 
     stock_data = {}
+    sentiment_data = {}
     for ticker in tickers:
         stock = yf.Ticker(ticker)
         data = stock.history(interval=interval, start=start_date_str, end=end_date_str)
         if data.empty:
             print(f"No data fetched for ticker {ticker} between {start_date_str} and {end_date_str}.")
         stock_data[ticker] = data[['Open', 'High', 'Low', 'Close', 'Volume']].rename(
-            columns=lambda col: f"{col}_{ticker}"
-        )
+            columns=lambda col: f"{col}_{ticker}")
+        
+        if sentiment_analysis:
+            sentiment_entries = []
+            current_time = start_date
+            while current_time < end_date:
+                sentiment_result = analyze_stock_sentiment(ticker, hours = sentiment_hours, date=current_time.strftime("%Y%m%d"))
+                sentiment_entries.append({
+                    'datetime': current_time,
+                    f'polarity_{ticker}': sentiment_result["polarity"],
+                    f'subjectivity_{ticker}': sentiment_result["subjectivity"]
+                })
+                current_time += timedelta(hours=sentiment_interval)
+
+            sentiment_df = pd.DataFrame(sentiment_entries).set_index("datetime")
+            sentiment_data[ticker] = sentiment_df
 
     # Align data by index (datetime)
     aligned_data = stock_data[tickers[0]]
     for ticker in tickers[1:]:
         aligned_data = aligned_data.join(stock_data[ticker], how="inner")
+    if sentiment_analysis:
+        for ticker in sentiment_data:
+            aligned_data = aligned_data.join(sentiment_data[ticker], how="left")
 
     # Now trim the data to the original range (after modifying it)
     aligned_data = aligned_data[(aligned_data.index >= start_date) & (aligned_data.index <= end_date)]
 
-    # print(aligned_data)
     return aligned_data
 
 def predict_with_model(model, X):
@@ -90,13 +113,25 @@ def move_to_next_weekday(date):
     """
     Moves the provided date to the next available weekday (Monday to Friday).
     """
-    if date.weekday() == 4:  # Saturday
+    if date.weekday() == 4:  # Friday
         return date + timedelta(days=3)  # Move to Monday
     elif date.weekday() == 5:  # Saturday
         return date + timedelta(days=2)  # Move to Monday
     elif date.weekday() == 6:  # Sunday
         return date + timedelta(days=1)  # Move to Monday
     return date
+def move_to_prev_weekday(date, start = False):
+    """
+    Moves the provided date to the prev available weekday (Monday to Friday).
+    """
+    if date.weekday() == 5:  # Saturday
+        datetime = date - timedelta(days=1)
+        return datetime.replace(hour=16, minute=0, second=0, microsecond=0) if start else datetime.replace(hour=9, minute=30, second=0, microsecond=0)  # Move to Friday
+    elif date.weekday() == 6:  # Sunday
+        datetime = date - timedelta(days=2)
+        return datetime.replace(hour=16, minute=0, second=0, microsecond=0) if start else datetime.replace(hour=9, minute=30, second=0, microsecond=0)  # Move to Friday
+    return date
+
 
 def convert_np_objects(obj):
     """Recursively converts numpy objects to standard Python types."""
@@ -112,7 +147,7 @@ def convert_np_objects(obj):
         return [convert_np_objects(item) for item in obj]
     return obj
 
-def stock_prediction(tickers, target_ticker, num_future_minutes=5, start_date_param=None, end_date_param=None):
+def stock_prediction(tickers, target_ticker, num_future_minutes=5, start_date_param=None, end_date_param=None, sentiment_analysis = False, sentiment_interval = 1, short_volume = False):
     """
     Main function to fetch stock data, train model, make predictions, and display results.
     
@@ -130,22 +165,22 @@ def stock_prediction(tickers, target_ticker, num_future_minutes=5, start_date_pa
         # Set start_date_param to current datetime if it's not provided
         if start_date_param is None:
             if end_date_param is None:
-                start_date_param = datetime.now(eastern_timezone) - timedelta(days=1)
+                start_date_param = datetime.now(eastern_timezone) - timedelta(days=7)
             else:
                 start_date_param = end_date_param - timedelta(days=5)
         if end_date_param is None:
             end_date_param = datetime.now(eastern_timezone)
 
         # Adjust dates if they fall on weekends or after market hours (4:00 PM)
-        start_date_param = move_to_next_weekday(start_date_param)  # Adjust start date if on weekend
-        end_date_param = move_to_next_weekday(end_date_param)  # Adjust end date if on weekend
-
+        start_date_param = move_to_prev_weekday(start_date_param, False)  # Adjust start date if on weekend
+        end_date_param = move_to_prev_weekday(end_date_param, True)  # Adjust end date if on weekend
         if end_date_param.hour > 16:  # After 4:00 PM (market close)
             # Move to the next available market day (9:30 AM)
-            end_date_param = end_date_param.replace(hour=9, minute=30, second=0, microsecond=0) + timedelta(days=1)
-
+            end_date_param = end_date_param.replace(hour=16, minute=0, second=0, microsecond=0)
+    
         # Fetch and align data
-        aligned_data = fetch_and_align_data(tickers, start_date=start_date_param, end_date=end_date_param)
+        aligned_data = fetch_and_align_data(tickers, start_date=start_date_param, end_date=end_date_param, sentiment_analysis=sentiment_analysis, \
+                                            sentiment_interval=sentiment_interval, short_volume = short_volume)
         # Define target and feature matrix
         aligned_data[f"Target_{target_ticker}"] = aligned_data[f"Close_{target_ticker}"].shift(-1)
         X = aligned_data.drop(columns=[f"Target_{target_ticker}"]).values[:-1]
@@ -186,7 +221,6 @@ def stock_prediction(tickers, target_ticker, num_future_minutes=5, start_date_pa
             if  prediction_time.time() >= market_close_time:
                 # Move to the next available market open time (9:30 AM on the next business day)
                 prediction_time = move_to_next_weekday(prediction_time) + timedelta(hours=9, minutes=30) - timedelta(hours = 16)
-            
             next_prediction = predict_with_model(booster, last_known_features)[0]
             
             # Update the features with the new predicted values
