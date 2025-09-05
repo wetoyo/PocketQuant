@@ -8,9 +8,10 @@ class StockPredictionApp(QWidget):
         self.init_ui()
 
     def init_ui(self):
+        # Initialize the main vertical layout for the application
         layout = QVBoxLayout()
 
-        # Input fields
+        # Input fields section for user inputs like tickers and parameters
         self.tickers_input = QLineEdit(self)
         self.tickers_input.setPlaceholderText("Enter tickers (comma-separated)")
 
@@ -86,3 +87,4 @@ if __name__ == "__main__":
     window = StockPredictionApp()
     window.show()
     sys.exit(app.exec())
+

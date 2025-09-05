@@ -1,0 +1,11 @@
+yfinance
+numpy
+xgboost
+scikit-learn
+pytz
+pandas
+matplotlib
+PySide6
+requests
+flask
+python-dotenv
