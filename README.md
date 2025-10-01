@@ -1,6 +1,6 @@
 # PocketQuant
 
-PocketQuant is a lightweight quantitative finance model, performing random forest regression across tickers to find correlation.
+PocketQuant is a lightweight quantitative finance model, performing random forest regression across tickers to predict future price in small timesteps.
 
 ## Features
 
