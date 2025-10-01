@@ -1,6 +1,6 @@
 # PocketQuant
 
-PocketQuant is a lightweight quantitative finance toolkit designed for rapid prototyping, analysis, and deployment of trading strategies.
+PocketQuant is a lightweight quantitative finance model, performing random forest regression across tickers to find correlation.
 
 ## Features
 
