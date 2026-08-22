@@ -9,3 +9,6 @@ PySide6
 requests
 flask
 python-dotenv
+beautifulsoup4
+selenium
+textblob

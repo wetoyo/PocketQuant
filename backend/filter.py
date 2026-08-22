@@ -1,9 +1,12 @@
+import os
 import requests
 import json
 from datetime import datetime
 import re
 
-def load_blocked_urls(file_path="blocked_urls.txt"):
+DEFAULT_BLOCKED_URLS_PATH = os.path.join(os.path.dirname(__file__), "blocked_urls.txt")
+
+def load_blocked_urls(file_path=DEFAULT_BLOCKED_URLS_PATH):
     """Load the list of blocked URLs from a file."""
     try:
         with open(file_path, "r") as f:
@@ -19,8 +22,8 @@ def filter_articles(articles, time_filter, blocked_urls):
     
     # Loop through each article and apply the filters
     for article in articles:
-        # Filter by snippet time if time_filter < 24 hours
-        if time_filter < 24:
+        # Filter by snippet time if time_filter < 24 hours (time_filter == -1 means no restriction)
+        if time_filter != -1 and time_filter < 24:
             snippet = article.get("snippet", "")
             hours_ago_match = re.search(r"(\d+)\s*hour", snippet)
             if hours_ago_match:

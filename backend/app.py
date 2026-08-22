@@ -3,7 +3,7 @@ import requests
 from datetime import datetime , timedelta     
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
-from filter import load_blocked_urls, filter_articles   
+from backend.filter import load_blocked_urls, filter_articles
 # Load environment variables
 load_dotenv()
 
@@ -20,15 +20,12 @@ def search_google():
     time_filter = request.args.get('time_filter', "")
     date = request.args.get('date', "")
     count = request.args.get('count', "")
-    time_filter = int(time_filter) 
     if not stock_name:
         return jsonify({"error": "Missing 'stock' parameter"}), 400
-    if not time_filter:
-        time_filter = -1
+    time_filter = int(time_filter) if time_filter else -1
     if not date:
         date = datetime.today().strftime("%Y%m%d")
-    if not count:
-        count = 10
+    count = int(count) if count else 10
     given_date = datetime.strptime(date, "%Y%m%d")
     week_ago = given_date - timedelta(days=7)
     week_ago_date = week_ago.strftime("%Y%m%d")

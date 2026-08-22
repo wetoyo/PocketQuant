@@ -1,6 +1,10 @@
-from stock_prediction import stock_prediction, batch_test, fetch_and_align_data, comparison_function
+import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from model.stock_prediction import stock_prediction, batch_test, fetch_and_align_data, comparison_function
 from datetime import datetime, timedelta
-import pytz 
+import pytz
 # Example usage:
 
 tickers = ["AAPL", "GOOG", "MSFT"]  # Example tickers

@@ -2,9 +2,9 @@ import yfinance as yf
 import numpy as np
 import xgboost as xgb  # Import xgboost for using the model
 from datetime import datetime, timedelta
-from train_xgboost import train_xgboost_model
+from model.train_xgboost import train_xgboost_model
 from sklearn.metrics import mean_squared_error
-from scrape import analyze_stock_sentiment
+from model.scrape import analyze_stock_sentiment
 import json
 import pytz
 import pandas as pd
@@ -51,7 +51,6 @@ def fetch_and_align_data(tickers, interval="1m", start_date=None, end_date=None,
         temp_end = end_date + timedelta(days=1)
     if temp_end.time() >= market_close_time:
         temp_end = move_to_next_weekday(temp_end) + timedelta(hours=9, minutes=30) - timedelta(hours = 16)
-    temp_end = end_date + timedelta(days=1)
     # print(f"temp:{temp_end} // start:{start_date} // end:{end_date}")
     # Strip time components for Yahoo Finance API
     start_date_str = temp_start.strftime('%Y-%m-%d')
@@ -111,15 +110,13 @@ def predict_with_model(model, X):
 
 def move_to_next_weekday(date):
     """
-    Moves the provided date to the next available weekday (Monday to Friday).
+    Moves the provided date forward to the next business day (Monday to Friday),
+    always advancing by at least one day.
     """
-    if date.weekday() == 4:  # Friday
-        return date + timedelta(days=3)  # Move to Monday
-    elif date.weekday() == 5:  # Saturday
-        return date + timedelta(days=2)  # Move to Monday
-    elif date.weekday() == 6:  # Sunday
-        return date + timedelta(days=1)  # Move to Monday
-    return date
+    next_day = date + timedelta(days=1)
+    while next_day.weekday() >= 5:  # Saturday=5, Sunday=6
+        next_day += timedelta(days=1)
+    return next_day
 def move_to_prev_weekday(date, start = False):
     """
     Moves the provided date to the prev available weekday (Monday to Friday).
@@ -256,10 +253,14 @@ def comparison_function(tickers, target_ticker, comparison_date, predict_interva
     """
     # Ensure the comparison date is in the correct timezone
     comparison_date = comparison_date.astimezone(eastern_timezone)
-    comparison_date = move_to_next_weekday(comparison_date)
 
     if comparison_date.time() >= market_close_time:
         comparison_date += timedelta(days=1)  # Move to the next day
+        comparison_date = comparison_date.replace(hour=9, minute=30, second=0, microsecond=0)
+
+    # If the date landed on a weekend, roll forward to the next trading day (Monday) at market open
+    while comparison_date.weekday() >= 5:  # Saturday=5, Sunday=6
+        comparison_date += timedelta(days=1)
         comparison_date = comparison_date.replace(hour=9, minute=30, second=0, microsecond=0)
 
     # Run the stock prediction using the market start as the end time
@@ -277,8 +278,9 @@ def comparison_function(tickers, target_ticker, comparison_date, predict_interva
         predicted_times = []
         predicted_closes = []
 
-    # Fetch actual data for the next interval
-    actual_data = fetch_and_align_data(tickers, interval="1m", start_date=comparison_date, end_date=comparison_date + timedelta(minutes=predict_interval -1))
+    # Fetch actual data for the next interval (predictions cover offsets 1..predict_interval minutes
+    # after comparison_date, so the actual data window must match those same offsets)
+    actual_data = fetch_and_align_data(tickers, interval="1m", start_date=comparison_date + timedelta(minutes=1), end_date=comparison_date + timedelta(minutes=predict_interval))
     
     # Get the actual closing prices for the target ticker
     actual_closes = actual_data[f"Close_{target_ticker}"].values
@@ -377,9 +379,15 @@ def batch_test(tickers, target_ticker, date, runs=200, interval=10, scale_method
 def percentage_change(prices):
     return [(p - prices[0]) / prices[0] * 100 for p in prices] if len(prices) > 1 else prices
 def standardize_prices(prices):
-    return (prices - np.mean(prices)) / np.std(prices) if len(prices) > 1 else prices
+    if len(prices) <= 1:
+        return prices
+    std = np.std(prices)
+    return (prices - np.mean(prices)) / std if std != 0 else np.zeros_like(prices)
 def normalize_prices(prices):
-    return (prices - min(prices)) / (max(prices) - min(prices)) if len(prices) > 1 else prices
+    if len(prices) <= 1:
+        return prices
+    price_range = max(prices) - min(prices)
+    return (prices - min(prices)) / price_range if price_range != 0 else np.zeros_like(prices)
 def plot_results(all_actual_prices, all_predicted_prices, target_ticker, display_target_only=True):
     """
     Plots the results of the stock predictions, allowing customization of what is displayed.

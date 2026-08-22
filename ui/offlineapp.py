@@ -1,7 +1,7 @@
 import sys
 import json
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QTextEdit, QLineEdit, QLabel, QCheckBox, QSpinBox
-from stock_prediction import stock_prediction
+from model.stock_prediction import stock_prediction
 class StockPredictionApp(QWidget):
     def __init__(self):
         super().__init__()
